@@ -1,0 +1,8 @@
+langchain
+langgraph
+langchain-google-genai
+streamlit
+beautifulsoup4 
+pillow
+requests
+tabulate
