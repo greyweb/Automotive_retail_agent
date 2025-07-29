@@ -40,7 +40,7 @@ Original data was scraped from:
 
    ```bash
    git clone <your-repo-url>
-   cd ai-car-assistant
+   cd Automotive_retail_agent
    ```
 
 2. **Create and activate a virtual environment**
