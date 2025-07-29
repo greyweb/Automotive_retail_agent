@@ -1,38 +1,47 @@
-````markdown
 # 🚗 AI Car Buying Assistant
 
-A Streamlit‑based AI agent that helps users find the perfect car from a dealership’s inventory. It leverages Google’s Gemini model and the LangGraph framework to deliver a conversational experience—from initial query to detailed vehicle recommendations.
+A Streamlit‑based AI agent that helps users find the perfect car from a dealership’s inventory. It leverages Google’s Gemini model and the LangGraph framework to deliver a conversational, chat‑based experience—from your initial query to detailed vehicle recommendations.
 
 ---
 
 ## 🔍 Features
 
-- **Conversational AI**  
-  Chat with an expert‑level assistant trained on automotive inventory.
+* **Conversational AI**
+  Chat with an expert automotive consultant powered by Gemini.
 
-- **Synchronized Filters**  
-  Sidebar filters (price, make, condition, etc.) that the AI understands and applies.
+* **Synchronized Filters**
+  Sidebar controls (price, make, condition, body style, etc.) that the AI understands and applies to its search.
 
-- **Database Integration**  
-  The AI generates and executes SQL queries against a local SQLite database of vehicle inventory.
+* **Database Integration**
+  Generates and executes SQL queries against a local SQLite database of vehicle inventory.
 
-- **Detailed Summaries**  
-  Rich, formatted summaries of top matches—pricing, offers, clickable links, and more.
+* **Detailed Summaries**
+  Rich, formatted overviews of top matches—including pricing, offers, and clickable links.
 
-- **Smart Error Handling**  
-  If no vehicles match the criteria, the AI suggests how to broaden or refine your search.
+* **Smart Error Handling**
+  If no vehicles match your criteria, suggests ways to broaden or refine your search.
+
+* **Secure**
+  All API keys are managed via environment variables and never committed to source control.
+
+---
+
+## 🎲 Data Source
+
+Inventory data is populated through a combination of web scraping and synthetic augmentation.
+Original data was scraped from:
+[https://www.californiacaronline.com](https://www.californiacaronline.com)
 
 ---
 
 ## 🛠️ Setup & Installation
 
-Follow these steps to get the project running locally.
+1. **Clone the repository**
 
-1. **Clone the repository**  
    ```bash
    git clone <your-repo-url>
    cd ai-car-assistant
-````
+   ```
 
 2. **Create and activate a virtual environment**
 
@@ -52,12 +61,13 @@ Follow these steps to get the project running locally.
    pip install -r requirements.txt
    ```
 
-4. **Initialize the vehicle inventory database**
+4. **Populate the database**
 
    ```bash
    python setup_database.py
    ```
-    You should see a confirmation that `car_inventory.db` was created successfully.
+
+   This will scrape (and/or load synthetic) data and create `car_inventory.db`.
 
 5. **Configure environment variables**
 
@@ -66,7 +76,8 @@ Follow these steps to get the project running locally.
       GOOGLE_API_KEY="AIzaSy...your...key"
       ```
 
-6. **Start the Streamlit app**
+
+6. **Run the Streamlit app**
 
    ```bash
    streamlit run app.py
@@ -76,24 +87,23 @@ Follow these steps to get the project running locally.
 
 ---
 
-## ⚙️ How It Works
+## ⚙️ Architecture & Workflow
 
-The AI agent is orchestrated as a LangGraph state machine:
+The assistant is implemented as a LangGraph state machine:
 
 1. **Planner**
-   Analyzes user input and selected filters to decide whether to ask a clarifying question or proceed to search.
+   Determines whether to ask clarifying questions or proceed with a search.
 
 2. **SQL Generator**
-   Crafts a precise SQLite query based on conversation context and filter values.
+   Constructs a precise SQLite query based on user input and active filters.
 
 3. **SQL Executor**
-   Runs the generated query against `car_inventory.db`.
+   Executes the query against `car_inventory.db`.
 
 4. **Decider**
-   Checks whether results were returned:
 
-   * **Summarizer (Results Found):** Builds a rich summary of the best-matching vehicles.
-   * **No Results Handler (No Matches):** Offers friendly suggestions for adjusting the search.
+   * **Summarizer (Results Found):** Builds a detailed summary of matching vehicles.
+   * **No Results Handler (No Matches):** Suggests adjustments to your search criteria.
 
 ---
 
@@ -102,5 +112,3 @@ The AI agent is orchestrated as a LangGraph state machine:
 ![Conversation Workflow](workflow_graph.png)
 
 ---
-
-*Happy car hunting!*
