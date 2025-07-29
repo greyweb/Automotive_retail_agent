@@ -30,9 +30,10 @@ logger = logging.getLogger("AICarAgent")
 def debug_state(state, step, debug=True):
     if debug:
         print("#"*50)
+        print(state)
         print(step)
         print("#"*50)
-        st.write(f"### Debug: {step}")
+        #st.write(f"### Debug: {step}")
         try:
             serializable_state = {}
             for key, value in state.items():
@@ -73,7 +74,6 @@ st.set_page_config(
 # Configuration
 GOOGLE_API_KEY = 'AIzaSyDkeo5SHfI_hpqgH2TlRbbvF4VwIQFUi7k'
 
-
 # UPDATED: Enhanced Vehicle Database Schema synchronized with actual column descriptions
 VEHICLE_SCHEMA = """
 Table: car_details
@@ -112,6 +112,7 @@ IMPORTANT DATA INSIGHTS:
 # 2. DATABASE AND UTILITY FUNCTIONS
 # ================================
 
+@st.cache_data
 def run_query(query: str, db_file: str = "car_inventory.db") -> pd.DataFrame:
     """Run a SQL query on a local SQLite database and return the results as a DataFrame."""
     try:
@@ -141,9 +142,9 @@ class AgentState(TypedDict):
 @st.cache_resource
 def get_llm():
     return ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-2.5-pro",
         google_api_key=GOOGLE_API_KEY,
-        temperature=0.3
+        temperature=0
     )
 
 llm = get_llm()
@@ -291,7 +292,7 @@ OPTIMIZATION RULES:
 - ORDER BY best value within budget criteria
 - Consider both net_price and available offers
 - LIMIT 5
-- Include key columns: year, make, model, trim, net_price, msrp, condition, body_style, fuel_type, offers, finance_options, url
+- Include key columns: year, make, model, trim, net_price, msrp, condition, body_style, fuel_type, offers, finance_options, url, transmission, ext_color
 
 CONVERSATION AND FILTER CONTEXT:
 {conversation_history}
@@ -350,7 +351,7 @@ def summarizer_node(state: AgentState):
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-You are an expert automotive sales consultant. Your goal is to create a rich, detailed, and helpful summary of vehicle search results for the user.
+You are an expert automotive sales consultant. Your goal is to create a rich, detailed, and helpful summary of vehicle search results for the user. This is the final step; no follow-up is possible.
 
 **SEARCH RESULTS (in markdown format):**
 {query_result}
@@ -387,39 +388,8 @@ You are an expert automotive sales consultant. Your goal is to create a rich, de
 | [Make] | [Model] | [Year] | $[Net Price] | [View Details](url) |
 
 ---
-**RESPONSE STRUCTURE EXAMPLE:**
-
-Based on your search for a family SUV, here are my top recommendations from our inventory:
-
-### [2025 Chevrolet Equinox LT](https://www.example.com/link-to-car-1)
-*   **Key Details:**
-    *   **Pricing:** **$35,123** (MSRP: $37,000 - *You Save $1,877*)
-    *   **Condition & Fuel:** New, Gasoline Fuel
-    *   **Offers:** $1,500 Customer Cash available.
-    *   **Financing:** 1.9% APR for 60 months for qualified buyers.
-*   **Highlights:** This brand-new SUV offers tremendous value with significant savings and excellent financing. It's a perfect choice for families seeking reliability and a full factory warranty.
-*   **Considerations:** As an LT trim, it may not have all the luxury features found in the Premier models.
-
-### [2025 Hyundai Santa Fe SEL](https://www.example.com/link-to-car-2)
-*   **Key Details:**
-    *   **Pricing:** **$38,456** (MSRP: $39,500 - *You Save $1,044*)
-    *   **Condition & Fuel:** New, Hybrid
-    *   **Offers:** None listed.
-    *   **Financing:** See dealer for financing options.
-*   **Highlights:** This modern hybrid SUV is packed with the latest technology and offers fantastic long-term fuel savings. The SEL trim provides a great balance of features for the price.
-*   **Considerations:** While the initial savings are lower, the hybrid engine provides excellent cost-of-ownership benefits.
-
----
-**Top 5 Matches from Our Inventory:**
-
-| Make      | Model      | Year | Net Price | Link          |
-|-----------|------------|------|-----------|---------------|
-| Chevrolet | Equinox    | 2025 | $35,123   | [View Details](https://www.example.com/link-to-car-1) |
-| Hyundai   | Santa Fe   | 2025 | $38,456   | [View Details](https://www.example.com/link-to-car-2) |
-| Ford      | Escape     | 2025 | $34,999   | [View Details](https://www.example.com/link-to-car-3) |
-| Kia       | Sorento    | 2025 | $37,888   | [View Details](https://www.example.com/link-to-car-4) |
-| Cadillac  | XT4        | 2025 | $42,111   | [View Details](https://www.example.com/link-to-car-5) |
-
+**Final Statement:**
+Conclude with a friendly closing statement, like "I hope this gives you a great starting point! Please restart the conversation if you'd like to search for something else."
 """),
             ("human", "Please create the detailed summary as instructed using the provided search results and conversation context.")
         ])
@@ -455,7 +425,7 @@ def no_results_handler_node(state: AgentState):
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-You are an expert, empathetic automotive sales consultant. A search of our inventory based on the user's request has returned zero results.
+You are an expert, empathetic automotive sales consultant. A search of our inventory based on the user's request has returned zero results. This is the final step; no follow-up is possible.
 
 Your task is to craft a helpful and strategic response. DO NOT sound like a robot saying "no results found."
 
@@ -469,7 +439,7 @@ Your task is to craft a helpful and strategic response. DO NOT sound like a robo
 3.  **Offer Smart, Actionable Alternatives:**
     *   Suggest loosening the *least important* filter. For example, if they asked for a specific color, suggest looking at other colors. If they set a very tight budget, suggest expanding it slightly.
     *   Propose a related alternative that IS in our inventory. Use your knowledge of our top brands (Chevrolet, Ford, Hyundai, Kia) and popular styles (SUVs, Crossovers).
-    *   Ask a question to re-engage the user and guide them toward these alternatives.
+4.  **Closing Statement:** Since this is a final message, end by inviting them to restart the conversation with adjusted filters. (e.g., "Feel free to adjust your filters and try another search, or restart our conversation to explore different options!").
 
 **INVENTORY KNOWLEDGE:**
 - We have ~3,000 vehicles, mostly 2025 models.
@@ -481,13 +451,11 @@ Your task is to craft a helpful and strategic response. DO NOT sound like a robo
 **USER's REQUEST (CONVERSATION & FILTERS):**
 {conversation_history}
 
-**EXAMPLE RESPONSES:**
+**EXAMPLE RESPONSE:**
 
-*   **Scenario (Too specific):** User wants a "New 2025 Red Ford F-150 under $40,000".
-*   **Good Response:** "I couldn't find a new 2025 red Ford F-150 in our inventory under $40,000 at the moment. We do have several new Chevrolet Silverado and Ford Ranger models in that price range that are very popular. Would you be interested in exploring some of those options, or perhaps looking at other colors for the F-150?"
+"I couldn't find a new 2025 red Ford F-150 in our inventory under $40,000 at the moment. We do have several new Chevrolet Silverado and Ford Ranger models in that price range that are very popular.
 
-*   **Scenario (Niche request):** User wants a "Used convertible under $25,000".
-*   **Good Response:** "It looks like we don't have any used convertibles that match your budget right now. However, for under $25,000, we have an excellent selection of sporty new sedans and used coupes from brands like Hyundai and Kia that offer a fun driving experience. Would you be open to considering a stylish coupe instead?"
+I'd suggest either looking at other colors for the F-150 or exploring those other truck models. Please restart our conversation if you'd like to try a new search with these suggestions!"
 
 ---
 Now, craft a response for the current user's request. Be friendly, helpful, and strategic.
@@ -506,8 +474,9 @@ Now, craft a response for the current user's request. Be friendly, helpful, and 
         logger.error(f"No results handler error: {e}")
         return {"final_answer": (
             "I couldn't find any vehicles that exactly match your criteria. "
-            "You might want to try adjusting your filters, such as widening the price range or selecting a different body style."
+            "You might want to try adjusting your filters, such as widening the price range or selecting a different body style. Please restart the conversation to try again."
         )}
+
 
 # ================================
 # 6. UPDATED: WORKFLOW SETUP
@@ -517,16 +486,17 @@ def should_generate_sql(state: AgentState):
     """Enhanced decision logic."""
     try:
         last_message = state["messages"][-1].content
-        return "continue" if "GENERATE_SQL" in last_message else "end"
-    except Exception as e:
-        logger.error(f"Decision logic error: {e}")
+        # If the model explicitly asks for a search, or if the user provides enough info, proceed.
+        if "GENERATE_SQL" in last_message:
+            return "continue"
+        # If the model is just asking a clarifying question, end this turn.
+        return "end"
+    except (IndexError, AttributeError) as e:
+        logger.error(f"Decision logic error (should_generate_sql): {e}")
         return "end"
 
-# --- NEW: DECISION FUNCTION AFTER SQL EXECUTION ---
 def decide_after_sql(state: AgentState):
-    """
-    Decides whether to summarize results or handle a no-results scenario.
-    """
+    """Decides whether to summarize results or handle a no-results scenario."""
     query_result = state.get("query_result", "")
     if "No vehicles found" in query_result or not query_result.strip():
         logger.info("Decision: No results found. Routing to no_results_handler.")
@@ -535,330 +505,192 @@ def decide_after_sql(state: AgentState):
         logger.info("Decision: Results found. Routing to summarizer.")
         return "summarize"
 
-# --- UPDATED: WORKFLOW CREATION ---
 @st.cache_resource
-def create_workflow(debug=True):
+def create_workflow(debug=False):
     """Create and compile the workflow graph with a no-results branch."""
     workflow = StateGraph(AgentState)
-
-    # Add all nodes, including the new one
     workflow.add_node("planner", wrap_with_debug(planner_node, "PLANNER", debug))
     workflow.add_node("sql_generator", wrap_with_debug(sql_generator_node, "SQL_GENERATOR", debug))
     workflow.add_node("sql_executor", wrap_with_debug(sql_executor_node, "SQL_EXECUTOR", debug))
     workflow.add_node("summarizer", wrap_with_debug(summarizer_node, "SUMMARIZER", debug))
-    workflow.add_node("no_results_handler", wrap_with_debug(no_results_handler_node, "NO_RESULTS_HANDLER", debug)) # New node
-
-    # Define the workflow structure
+    workflow.add_node("no_results_handler", wrap_with_debug(no_results_handler_node, "NO_RESULTS_HANDLER", debug))
     workflow.set_entry_point("planner")
-
-    # Conditional edge from planner to either generate SQL or end
-    workflow.add_conditional_edges(
-        "planner",
-        should_generate_sql,
-        {"continue": "sql_generator", "end": END}
-    )
-
-    # Path for generating and executing SQL
+    workflow.add_conditional_edges("planner", should_generate_sql, {"continue": "sql_generator", "end": END})
     workflow.add_edge("sql_generator", "sql_executor")
-
-    # NEW: Conditional edge after executing SQL to handle results or no results
-    workflow.add_conditional_edges(
-        "sql_executor",
-        decide_after_sql,
-        {
-            "summarize": "summarizer",
-            "handle_no_results": "no_results_handler"
-        }
-    )
-
-    # Endpoints for the two final branches
+    workflow.add_conditional_edges("sql_executor", decide_after_sql, {"summarize": "summarizer", "handle_no_results": "no_results_handler"})
     workflow.add_edge("summarizer", END)
     workflow.add_edge("no_results_handler", END)
-
     return workflow.compile()
 
 
 # ================================
-# 7. UPDATED STREAMLIT APPLICATION WITH SYNCHRONIZED FILTERS
+# 7. STREAMLIT APPLICATION LOGIC & UI
 # ================================
+
+def show_buying_guide():
+    """Display car buying tips specific to our inventory."""
+    st.subheader("🎓 Concord Dealership Car Buying Guide")
+    
+    with st.expander("🔍 What to Inspect at Our Dealership"):
+        st.markdown("""
+        **New Vehicles (2542 available):**
+        - Verify all factory options and trim features.
+        - Check for transport damage or lot wear.
+        - Ensure all paperwork and warranties are complete.
+        - Ask about manufacturer incentives and rebates.
+        
+        **Used Vehicles (292 available):**
+        - Request Carfax/AutoCheck vehicle history report.
+        - Inspect tires for even wear patterns.
+        - Review maintenance records and service history.
+        - Test all electrical systems and features.
+        
+        **Certified Pre-Owned (143 available):**
+        - Verify CPO warranty coverage and terms.
+        - Review the multi-point inspection checklist.
+        - Understand additional benefits and roadside assistance.
+        """)
+    
+    with st.expander("💡 Negotiation Tips for Our Inventory"):
+        st.markdown("""
+        - **Research Our Inventory:** Use our filters to compare similar vehicles and check net_price vs MSRP.
+        - **Focus on Total Price:** Negotiate the total vehicle price, not just the monthly payment.
+        - **Trade-In:** Negotiate your trade-in value separately from the new purchase.
+        - **Financing:** Get pre-approved for a loan to know your budget, but also ask about our available financing options.
+        """)
+    
+    with st.expander("⚡ Electric & Hybrid Guide (623 available)"):
+        st.markdown("""
+        - **Charging:** Consider home charging setup requirements and costs.
+        - **Range:** Review the vehicle's range and local charging network access.
+        - **Incentives:** Ask about federal and state tax incentives that may apply.
+        - **Maintenance:** Understand the differences in maintenance compared to gasoline cars (e.g., no oil changes, battery health).
+        """)
 
 def main():
     st.title("🚗 AI Car Buying Assistant")
     st.markdown("### Find your perfect vehicle from our Concord dealership inventory")
     st.markdown("*Over 2,900 vehicles available with expert financing guidance*")
     
-    # Initialize session state
+    # --- Session State Initialization ---
     if 'conversation_state' not in st.session_state:
         st.session_state.conversation_state = {
-            "messages": [],
-            "sql_query": "",
-            "query_result": "",
-            "final_answer": "",
-            "user_preferences": {},
-            "conversation_stage": "greeting",
-            "selected_filters": {}
+            "messages": [], "sql_query": "", "query_result": "", "final_answer": "",
+            "user_preferences": {}, "conversation_stage": "greeting", "selected_filters": {}
         }
-    
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
-    
     if 'workflow_app' not in st.session_state:
-        st.session_state.workflow_app = create_workflow(debug=False) # Set debug to False for cleaner UI
-    
-    # UPDATED: Sidebar with synchronized filters based on actual data
+        st.session_state.workflow_app = create_workflow(debug=False)
+    # NEW: State to track if the conversation has ended to disable chat input
+    if 'conversation_ended' not in st.session_state:
+        st.session_state.conversation_ended = False
+
+    # --- Sidebar for Filters ONLY ---
     with st.sidebar:
         st.header("🔍 Vehicle Filters")
-        st.markdown("*Filters based on actual inventory*")
+        st.markdown("*Refine your search based on our live inventory.*")
         
-        # Price Range - aligned with SQL mapping
-        st.subheader("💰 Budget")
-        price_range = st.select_slider(
-            "Price Range",
-            options=["Under $20k", "$20k-$30k", "$30k-$50k", "$50k-$75k", "$75k-$100k", "Over $100k"],
-            value="$30k-$50k"
-        )
+        price_range = st.select_slider("Price Range", options=["Under $20k", "$20k-$30k", "$30k-$50k", "$50k-$75k", "$75k-$100k", "Over $100k"], value="$30k-$50k")
+        condition = st.radio("Vehicle Condition", ["Any", "New", "Used", "Certified Pre-Owned"], index=0, help="New: 2542 | Used: 292 | CPO: 143")
+        body_style = st.multiselect("Body Style", ["SUV/Crossover", "Sedan", "Truck", "Coupe", "Hatchback", "Convertible"], default=[], help="SUV: 773 | Crossover: 728 | Sedan: 269")
+        make = st.multiselect("Preferred Brands", ["Chevrolet", "Ford", "Hyundai", "Kia", "Cadillac", "BMW", "Mercedes", "Audi", "Toyota", "Honda", "Nissan"], default=[], help="Top: Chevrolet, Ford, Hyundai")
+        fuel_type = st.multiselect("Fuel Preference", ["Gasoline Fuel", "Electric", "Hybrid"], default=[], help="Gasoline: 2242 | Electric: 322 | Hybrid: 301")
+        location = st.selectbox("Dealership Location", ["Concord", "Any Location"], index=0, help="Primary inventory at Concord (2977 vehicles)")
         
-        # Condition - exact database values
-        st.subheader("🆕 Condition")
-        condition = st.radio(
-            "Vehicle Condition",
-            ["Any", "New", "Used", "Certified Pre-Owned"],
-            index=0,
-            help="New: 2542 available | Used: 292 available | CPO: 143 available"
-        )
-        
-        # Body Style - mapped to actual database values
-        st.subheader("🚙 Body Style")
-        body_style = st.multiselect(
-            "Body Style",
-            ["SUV/Crossover", "Sedan", "Truck", "Coupe", "Hatchback", "Convertible"],
-            default=[],
-            help="SUV: 773 | Crossover: 728 | Sport Utility: 570 | Sedan: 269"
-        )
-        
-        # Make/Brand - top brands from actual data
-        st.subheader("🏭 Brand")
-        make = st.multiselect(
-            "Preferred Brands",
-            ["Chevrolet", "Ford", "Hyundai", "Kia", "Cadillac", "BMW", "Mercedes", "Audi", "Toyota", "Honda", "Nissan"],
-            default=[],
-            help="Top inventory: Chevrolet (750), Ford (457), Hyundai (456), Kia (328), Cadillac (309)"
-        )
-        
-        # Fuel Type - actual database values
-        st.subheader("⛽ Fuel Type")
-        fuel_type = st.multiselect(
-            "Fuel Preference",
-            ["Gasoline Fuel", "Electric", "Hybrid"],
-            default=[],
-            help="Gasoline: 2242 | Electric: 322 | Hybrid: 301"
-        )
-        
-        # Location - primarily Concord
-        st.subheader("📍 Location")
-        location = st.selectbox(
-            "Dealership Location",
-            ["Concord", "Any Location"],
-            index=0,
-            help="Primary inventory at Concord location (2977 vehicles)"
-        )
-        
-        # Update filters in session state
         st.session_state.conversation_state["selected_filters"] = {
             "price_range": price_range,
             "condition": condition if condition != "Any" else None,
-            "body_style": body_style,
-            "make": make,
-            "fuel_type": fuel_type,
+            "body_style": body_style, "make": make, "fuel_type": fuel_type,
             "location": location if location != "Any Location" else None,
         }
-        
-        # Inventory summary
-        st.markdown("---")
-        st.subheader("📊 Inventory Overview")
-        st.info("🚗 Total: ~3,000 vehicles")
-        st.info("📅 Years: 2022-2026 (mostly 2025)")
-        st.info("🆕 Condition: 85% New, 10% Used, 5% CPO")
-        st.info("🚙 Popular: SUVs & Crossovers")
-        
-        # Reset button
-        if st.button("🔄 Reset Conversation"):
+
+    # --- Main Area ---
+    # NEW: Accessible Restart Button at the top
+    top_cols = st.columns([0.8, 0.2])
+    with top_cols[1]:
+        if st.button("🔄 Restart Conversation", use_container_width=True):
             st.session_state.conversation_state = {
-                "messages": [],
-                "sql_query": "",
-                "query_result": "",
-                "final_answer": "",
-                "user_preferences": {},
-                "conversation_stage": "greeting",
+                "messages": [], "sql_query": "", "query_result": "", "final_answer": "",
+                "user_preferences": {}, "conversation_stage": "greeting",
                 "selected_filters": st.session_state.conversation_state["selected_filters"]
             }
             st.session_state.chat_history = []
+            st.session_state.conversation_ended = False # Re-enable chat
             st.rerun()
-    
-    # Main chat interface (no columns)
-    st.subheader("💬 Chat with Your Car Advisor")
-    
-    # MODIFICATION: Simplified chat history display
-    chat_container = st.container()
-    with chat_container:
-        for message in st.session_state.chat_history:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"]) # Use markdown to render clickable links
-    
-    # Chat input
-    user_input = st.chat_input("Ask about vehicles, financing, or your car needs...")
-    
-    # MODIFICATION: Updated chat processing logic
-    if user_input:
-        # Add user message to chat history
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        
-        # Process message through workflow
-        st.session_state.conversation_state["messages"].append(HumanMessage(content=user_input))
-        
-        with st.spinner("Searching our inventory..."):
-            try:
-                current_state = dict(st.session_state.conversation_state)
-                
-                result = st.session_state.workflow_app.invoke(current_state)
-                
-                if result:
-                    st.session_state.conversation_state.update(result)
-                
-                # Get the final answer from the workflow
-                if result.get("final_answer"):
-                    assistant_response = result["final_answer"]
-                # Handle cases where the conversation continues (planner asks a question)
-                elif result.get("messages"):
-                    assistant_response = result["messages"][-1].content
-                else:
-                    assistant_response = "I'm ready to help. What are you looking for?"
 
-                # Update langgraph state for the next turn
-                if st.session_state.conversation_state.get("messages"):
+    # NEW: Tabbed interface for Chat, Insights, and Guide
+    tab_chat, tab_insights, tab_guide = st.tabs(["💬 Chat Advisor", "📊 Inventory Insights", "🎓 Buying Guide"])
+
+    with tab_chat:
+        # Display chat history
+        chat_container = st.container()
+        with chat_container:
+            for message in st.session_state.chat_history:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+        # Chat input with disabled logic
+        chat_placeholder = "Conversation has ended. Please restart to begin a new search." if st.session_state.conversation_ended else "Ask about vehicles, financing, or your car needs..."
+        user_input = st.chat_input(chat_placeholder, disabled=st.session_state.conversation_ended)
+        
+        if user_input:
+            st.session_state.chat_history.append({"role": "user", "content": user_input})
+            st.session_state.conversation_state["messages"].append(HumanMessage(content=user_input))
+            
+            with st.spinner("Your AI advisor is thinking..."):
+                try:
+                    result = st.session_state.workflow_app.invoke(dict(st.session_state.conversation_state))
+                    
+                    if result:
+                        st.session_state.conversation_state.update(result)
+                    
+                    if result.get("final_answer"):
+                        assistant_response = result["final_answer"]
+                        st.session_state.conversation_ended = True # Disable chat input
+                    elif result.get("messages"):
+                        assistant_response = result["messages"][-1].content
+                    else:
+                        assistant_response = "I'm ready when you are. What are you looking for today?"
+
                     st.session_state.conversation_state["messages"][-1] = AIMessage(content=assistant_response)
-                else:
-                    st.session_state.conversation_state["messages"].append(AIMessage(content=assistant_response))
-                
-                # Add assistant response to chat history
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "content": assistant_response,
-                })
-                
-            except Exception as e:
-                st.error(f"Error processing request: {str(e)}")
-                logger.error(f"Main processing error: {e}")
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "content": "I apologize, but I encountered an error. Please try rephrasing your question.",
-                })
-        
-        st.rerun()
+                    st.session_state.chat_history.append({"role": "assistant", "content": assistant_response})
+                    
+                except Exception as e:
+                    st.error(f"Error processing request: {str(e)}")
+                    logger.error(f"Main processing error: {e}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": "I apologize, but I encountered an error. Please try rephrasing your question or restart the conversation."})
+            
+            st.rerun()
 
-# ================================
-# 8. UPDATED ADDITIONAL FEATURES
-# ================================
+    with tab_insights:
+        st.subheader("Our Concord Inventory at a Glance")
+        st.markdown("We have a wide selection, with key strengths in these areas:")
+        
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("Total Vehicles", "~3,000")
+        metric_cols[1].metric("New Vehicles", "2,542", "85% of inventory")
+        metric_cols[2].metric("SUVs/Crossovers", "1,501", "Most popular style")
+        metric_cols[3].metric("Eco-Friendly", "623", "Electric & Hybrid")
 
-def show_buying_guide():
-    """UPDATED: Display car buying tips specific to our inventory."""
-    st.subheader("🎓 Concord Dealership Car Buying Guide")
-    
-    with st.expander("🔍 What to Inspect at Our Dealership"):
-        st.markdown("""
-        **New Vehicles (2542 available):**
-        - Verify all factory options and trim features
-        - Check for transport damage or lot wear
-        - Ensure all paperwork and warranties are complete
-        - Ask about manufacturer incentives and rebates
-        
-        **Used Vehicles (292 available):**
-        - Request Carfax/AutoCheck vehicle history report
-        - Inspect tires for even wear patterns
-        - Review maintenance records and service history
-        - Test all electrical systems and features
-        - Look for signs of accidents, flooding, or major repairs
-        
-        **Certified Pre-Owned (143 available):**
-        - Verify CPO warranty coverage and terms
-        - Review the multi-point inspection checklist
-        - Understand additional benefits and roadside assistance
-        """)
-    
-    with st.expander("💡 Negotiation Tips for Our Inventory"):
-        st.markdown("""
-        **Research Our Inventory:**
-        - Use our filters to compare similar vehicles
-        - Check net_price vs MSRP for potential savings
-        - Look for vehicles with manufacturer offers
-        - Compare trim levels and features
-        
-        **At Our Concord Dealership:**
-        - Focus on total price, not just monthly payments
-        - Ask about available financing options
-        - Negotiate trade-in value separately
-        - Consider our extensive inventory for alternatives
-        - Don't rush - we have 3000+ vehicles to choose from
-        """)
-    
-    with st.expander("⚡ Electric & Hybrid Guide (623 available)"):
-        st.markdown("""
-        **Electric Vehicles (322 available):**
-        - Calculate charging costs vs gasoline savings
-        - Consider home charging setup requirements
-        - Review range and charging network access
-        - Ask about federal and state tax incentives
-        
-        **Hybrid Vehicles (301 available):**
-        - Understand different hybrid types (mild, full, plug-in)
-        - Compare fuel economy improvements
-        - Consider battery warranty coverage
-        - Review maintenance differences
-        """)
+        st.info("🏆 **Top Brands:** Chevrolet (750), Ford (457), Hyundai (456), Kia (328), Cadillac (309)")
+        st.info("📅 **Model Years:** Primarily 2025 models, with select 2022-2024 and 2026 vehicles available.")
+        st.info("🎯 **Certified Pre-Owned:** We have 143 CPO vehicles that have passed rigorous inspections and include extended warranties.")
 
-def add_sidebar_features():
-    """UPDATED: Add features specific to our inventory."""
-    st.sidebar.markdown("---")
-    
-    if st.sidebar.button("🎓 Concord Buying Guide"):
+    with tab_guide:
         show_buying_guide()
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**💡 Inventory Insights**")
-    st.sidebar.info("🏆 85% of our inventory is new 2025 models")
-    st.sidebar.info("🚙 Largest SUV/Crossover selection in the area") 
-    st.sidebar.info("⚡ 623 eco-friendly electric & hybrid options")
-    st.sidebar.info("🎯 143 certified pre-owned vehicles available")
+
 
 # ================================
-# 9. MAIN APPLICATION ENTRY POINT
+# 8. MAIN APPLICATION ENTRY POINT
 # ================================
 
 if __name__ == "__main__":
-    # Add custom CSS for better styling
     st.markdown("""
     <style>
-    .stExpander > div:first-child {
-        background-color: #f0f2f6;
-    }
-    .metric-container {
-        background-color: #ffffff;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e0e0e0;
-    }
-    .vehicle-card {
+    .st-emotion-cache-1c7y2kd { /* Chat message container */
         border: 1px solid #e0e0e0;
         border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        background-color: #ffffff;
-    }
-    .st-emotion-cache-1c7y2kd { /* Targets chat message container */
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border-radius: 0.5rem;
-        border: 1px solid #e0e0e0;
     }
     .inventory-highlight {
         background: linear-gradient(90deg, #4CAF50, #2196F3);
@@ -869,13 +701,8 @@ if __name__ == "__main__":
     </style>
     """, unsafe_allow_html=True)
     
-    # Add sidebar features
-    add_sidebar_features()
-    
-    # Run main application
     main()
     
-    # Updated footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666; font-size: 0.8em;'>
