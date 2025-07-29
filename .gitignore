@@ -70,3 +70,6 @@ venv.bak
 *.swp
 *.swo
 *~
+
+#gitignore file:
+.gitignore
