@@ -3,6 +3,16 @@ import sqlite3
 import pandas as pd
 from typing import List, TypedDict, Annotated, Dict, Any
 
+import asyncio
+import nest_asyncio
+
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+nest_asyncio.apply()
+
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
