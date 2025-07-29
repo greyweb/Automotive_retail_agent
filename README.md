@@ -22,9 +22,6 @@ A Streamlit‑based AI agent that helps users find the perfect car from a dealer
 - **Smart Error Handling**  
   If no vehicles match the criteria, the AI suggests how to broaden or refine your search.
 
-- **Secure**  
-  API keys and credentials are stored in environment variables (never committed to Git).
-
 ---
 
 ## 🛠️ Setup & Installation
@@ -107,6 +104,3 @@ The AI agent is orchestrated as a LangGraph state machine:
 ---
 
 *Happy car hunting!*
-
-```
-```
