@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from typing import List, TypedDict, Annotated, Dict, Any
+import os 
 
 import asyncio
 import nest_asyncio
@@ -46,35 +47,47 @@ class AgentState(TypedDict):
     selected_filters: Dict[str, Any]
 
 # Configuration
-GOOGLE_API_KEY = 'AIzaSyDkeo5SHfI_hpqgH2TlRbbvF4VwIQFUi7k' # IMPORTANT: Replace with your actual key or use st.secrets
+GOOGLE_API_KEY =  "AIzaSyDkeo5SHfI_hpqgH2TlRbbvF4VwIQFUi7k" # Fallback for local dev
 
 # Initialize LLM
 @st.cache_resource
 def get_llm():
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-flash",  
         google_api_key=GOOGLE_API_KEY,
         temperature=0
     )
 
 llm = get_llm()
-
 # ================================
 # 2. DATABASE AND UTILITY FUNCTIONS
 # ================================
 
-@st.cache_data
-def run_query(query: str, db_file: str = "car_inventory.db") -> pd.DataFrame:
-    """Run a SQL query on a local SQLite database and return the results as a DataFrame."""
-    try:
-        conn = sqlite3.connect(db_file)
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-        return df
-    except Exception as e:
-        logger.error(f"Database query error: {e}")
-        # Return empty DataFrame with expected columns
-        return pd.DataFrame(columns=['year', 'make', 'model', 'trim', 'net_price', 'msrp', 'condition', 'body_style', 'fuel_type', 'offers', 'finance_options', 'url'])
+try:
+    # This works in most standard execution environments
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # This is a fallback for interactive environments like notebooks
+    BASE_DIR = os.getcwd()
+DB_PATH = os.path.join(BASE_DIR, "car_inventory.db")
+
+
+# --- FIX APPLIED HERE ---
+# The @st.cache_data decorator was removed as it cannot be called from a background thread by LangGraph.
+def run_query(query: str, db_file: str = DB_PATH) -> pd.DataFrame:
+    """
+    Run a SQL query on a local SQLite database and return the results as a DataFrame.
+    NOTE: This function will now raise an exception on error instead of handling it internally.
+    """
+    if not os.path.exists(db_file):
+        # Raising a clear exception is better than returning an empty DataFrame
+        raise FileNotFoundError(f"Database file not found at path: {db_file}")
+
+    # No try/except block here. Let exceptions propagate to the caller.
+    conn = sqlite3.connect(db_file)
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df
 
 def format_conversation_with_filters(messages: List[BaseMessage], filters: Dict[str, Any]) -> str:
     """Format conversation history including filter selections."""
@@ -156,15 +169,16 @@ def sql_generator_node(state: AgentState):
         return {"sql_query": "SELECT year, make, model, trim, net_price, msrp, condition, body_style, fuel_type, offers, finance_options, url FROM car_details WHERE location = 'Concord' LIMIT 5"}
 
 def sql_executor_node(state: AgentState):
-    """Execute SQL with enhanced error handling."""
+    """Execute SQL with enhanced error handling and logging."""
     query = state["sql_query"]
-    
+
     try:
         result_df = run_query(query)
-        
+
         if result_df.empty:
             return {"query_result": "No vehicles found matching your criteria."}
-        
+
+        # This part for handling missing columns is good, keep it.
         required_cols = ['make', 'model', 'year', 'net_price', 'url', 'trim', 'msrp', 'condition', 'fuel_type', 'offers', 'finance_options', 'transmission', 'ext_color']
         for col in required_cols:
             if col not in result_df.columns:
@@ -172,10 +186,12 @@ def sql_executor_node(state: AgentState):
 
         markdown_table = result_df.to_markdown(index=False)
         return {"query_result": markdown_table}
-        
+
     except Exception as e:
-        logger.error(f"SQL execution error: {e}")
-        return {"query_result": f"Error executing query: {str(e)}"}
+        # Log the full exception traceback for detailed debugging
+        logger.error(f"SQL execution failed for query: \n{query}", exc_info=True)
+        # Return a more informative error message to the state
+        return {"query_result": f"Error executing query. Details: {str(e)}"}
 
 def summarizer_node(state: AgentState):
     """Creates a highly polished summary using the Auto-Genie persona."""
@@ -217,7 +233,7 @@ def no_results_handler_node(state: AgentState):
         # Format filters into a human-readable string for the prompt.
         # This handles cases where filters might be empty.
         if filters:
-            filter_str = ", ".join([f"{key.replace('_', ' ')}: {value}" for key, value in filters.items()])
+            filter_str = ", ".join([f"{key.replace('_', ' ')}: {value}" for key, value in filters.items() if value])
         else:
             filter_str = "No specific filters applied."
 
@@ -226,10 +242,10 @@ def no_results_handler_node(state: AgentState):
             filters
         )
 
+        # Using NO_RESULTS_HANDLER_SYSTEM_PROMPT_v2 as it seems more robust
         prompt = ChatPromptTemplate.from_messages([
-            ("system", NO_RESULTS_HANDLER_SYSTEM_PROMPT),
-            # Use a generic "human" message, as the real context is in the system prompt
-            ("human", "Please generate a helpful response for the user.")
+            ("system", NO_RESULTS_HANDLER_SYSTEM_PROMPT_v2),
+            ("human", "Please generate a helpful and creative response to re-engage the user.")
         ])
 
         no_results_chain = prompt | llm | StrOutputParser()
