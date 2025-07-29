@@ -55,6 +55,9 @@ def debug_state(state, step, debug=True):
 def wrap_with_debug(node_func, step_name, debug=True):
     def wrapped_node(state):
         result = node_func(state)
+        print("#"*50)
+        print(result)
+        print("#"*50)
         debug_state({**state, **result}, step_name, debug)
         return result
     return wrapped_node
@@ -292,7 +295,7 @@ OPTIMIZATION RULES:
 - ORDER BY best value within budget criteria
 - Consider both net_price and available offers
 - LIMIT 5
-- Include key columns: year, make, model, trim, net_price, msrp, condition, body_style, fuel_type, offers, finance_options, url, transmission, ext_color
+- Include key columns: year, make, model, trim, net_price, msrp, condition, body_style, fuel_type, offers, finance_options, url, transmission, ext_color,availability
 
 CONVERSATION AND FILTER CONTEXT:
 {conversation_history}
@@ -341,10 +344,11 @@ def sql_executor_node(state: AgentState):
         logger.error(f"SQL execution error: {e}")
         return {"query_result": f"Error executing query: {str(e)}"}
 
+
 def summarizer_node(state: AgentState):
     """
-    UPDATED: Creates a highly detailed and beautified summary with clickable links, 
-    emojis, financial details, and pros/cons for 2 cars, plus a table for 5.
+    UPDATED: Creates a highly polished summary with exterior color, a non-greyed "Deal"
+    section, and an enhanced call-to-action with a clickable button and confirmation message.
     """
     try:
         conversation_history = format_conversation_with_filters(
@@ -352,57 +356,76 @@ def summarizer_node(state: AgentState):
             state.get("selected_filters", {})
         )
 
-        # *** MODIFIED PROMPT FOR BEAUTIFIED OUTPUT ***
+        # *** NEW PROMPT WITH COLOR, IMPROVED DEAL SECTION, AND ENHANCED CTA ***
         prompt = ChatPromptTemplate.from_messages([
             ("system", """
-You are an expert automotive sales consultant and a markdown formatting wizard. Your goal is to present the vehicle search results in a beautiful, engaging, and easy-to-read format. This is the final step; no follow-up is possible.
+You are "Auto-Genie," a friendly and brilliant automotive expert. Your mission is to transform raw vehicle data into a beautiful, insightful, and highly readable markdown summary. This is the final presentation, so make it impressive!
 
-**SEARCH RESULTS (in markdown format):**
+**SEARCH RESULTS (in markdown format, includes 'ext_color' column):**
 {query_result}
 
 **CONVERSATION HISTORY:**
 {conversation_history}
 
-**YOUR TASK - Follow this structure precisely to create a visually appealing summary:**
+**YOUR TASK: Create the summary by following this structure PRECISELY.**
 
 ---
+✨ **Here are the top vehicles that match your search!** ✨
 
-### 🌟 Top Recommendations For You
-
-I've analyzed our inventory based on your request and found a couple of standout options. Here are the detailed profiles for the top two vehicles:
-
----
-**DETAILED PROFILE FORMAT (Use for each of the top 2 cars):**
-
-### ✨ [Year Make Model Trim](url)
-*   **💰 Pricing:** ** $[net_price]** (MSRP: $[msrp]). *A potential saving of $[msrp - net_price]!*
-*   **📋 Key Specs:** [Condition] | [Fuel Type] | [Transmission from search results]
-*   **🎁 Special Offers:** [List any offers from the 'offers' column, or state 'None listed'. Be enthusiastic if there are good ones!]
-*   **💸 Financing:** [List any terms from the 'finance_options' column, or state 'Flexible options available'.]
-
-> **Why it's a great choice:** [Provide a 1-2 sentence summary of why this car is a great choice. Mention value, features, or a great deal. Use compelling language.]
->
-> **Good to know:** [Provide a 1-sentence note on any potential trade-offs, like a higher price, basic trim, etc.]
+[Write a 1-sentence intro that acknowledges the user's key filters, e.g., "Based on your interest in a [Condition] [Make] [Body Style]..."]
 
 ---
+**DETAILED PROFILE (Create one for each of the top 2 cars. Use emojis ⚡️, 🚀, 🚗):**
+
+### [Emoji] [Year Make Model Trim]
+
+**The Deal**
+*   Price: **$[net_price]**
+*   MSRP: `$[msrp]`
+*   Your Savings: $[msrp - net_price]
+*   Deal Quality: [Create a star rating based on savings. >$2k = Excellent! ⭐⭐⭐⭐⭐, >$1k = Great Deal! ⭐⭐⭐⭐, etc.]
+
+**At a Glance**
+*   **Powertrain:** [Fuel Type] | [Transmission] | [Drivetrain]
+*   **Color:** [Exterior Color from 'ext_color' column]
+*   **Special Offers:** [List offers enthusiastically. If none, state "No special offers listed."]
+*   **Finance Highlight:** [Mention the most compelling finance/lease option. **Bold** specific payments.]
+
+**✅ Why You'll Love It (Pros):**
+*   [Convert 'Why it's great' into 1-2 compelling bullet points.]
+*   [Add another bullet point highlighting a key strength.]
+
+**⚠️ Things to Consider (Cons):**
+*   [Convert 'Good to know' into a clear, concise bullet point.]
+
+🔗 [View Full Details](url)
+
+---
+**QUICK COMPARISON TABLE (Create for the top 5 cars):**
 
 ### 📊 Quick Comparison
 
-Here's a quick look at the top 5 matches to help you compare:
-
-**SUMMARY TABLE FORMAT (Use for the top 5 cars):**
-
-| Vehicle         | Year | Price       | View Deal    |
-|-----------------|------|-------------|--------------|
-| [Make] [Model]  | [Year] | $[Net Price] | [View Details](url) |
+| Vehicle | Price | Color | Monthly Payment | Link |
+| :--- | :--- | :--- | :--- | :--- |
+| **[Model Trim]** | $[Net Price] | [Ext Color] | [Summarize finance highlight] | [View](url) |
 | ... and so on for up to 5 cars ... |
 
 ---
-**Final Statement:**
-Conclude with a friendly and encouraging closing statement. 
-             For example: "This is a great selection to start with! Please feel free to restart the conversation if you want to explore other options."
+**CALL TO ACTION:**
+
+### Ready to Take the Next Step?
+
+You can review the vehicle(s) again here:
+*   [List the top 1-2 vehicles with their [Year Make Model](url)]
+
+When you're ready, click below and we'll have an agent contact you shortly.
+
+> [!NOTE]
+> **[Click Here to Have an Agent Contact You](#)**
+>
+> *After clicking, our system will be notified. Our agent will get back to you soon with the recommended vehicles.*
 """),
-            ("human", "Please create the detailed, beautified summary as instructed using the provided search results and conversation context.")
+            ("human", "You are Auto-Genie. Please create the beautiful, insightful summary as instructed using the provided search results, including the exterior color and the new call to action format.")
         ])
 
         summarizer_chain = prompt | llm | StrOutputParser()
@@ -416,10 +439,9 @@ Conclude with a friendly and encouraging closing statement.
     except Exception as e:
         logger.error(f"Summarizer error: {e}")
         return {"final_answer": (
-            "Sorry, I couldn't prepare your detailed recommendations at this time. Please try again."
+            "I'm sorry, I encountered a problem while preparing your personalized recommendations. "
+            "Could you please try refining your search or starting over?"
         )}
-
-
 # ================================
 # 5. NEW: NODE FOR HANDLING NO RESULTS
 # ================================
