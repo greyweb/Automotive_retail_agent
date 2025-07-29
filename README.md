@@ -32,6 +32,9 @@ Inventory data is populated through a combination of web scraping and synthetic 
 Original data was scraped from:
 [https://www.californiacaronline.com](https://www.californiacaronline.com)
 
+
+NOTE : There could be some discrepency with the vehicle link and the actual data present there since they are a combintaion of synthetic data generation and basic webscraping
+
 ---
 
 ## 🛠️ Setup & Installation
