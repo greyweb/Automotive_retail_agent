@@ -1,10 +1,9 @@
-
 import sqlite3
 import pandas as pd
 
-csv_file = "car_inventory_filled.csv"  # Path to your CSV file
-db_file = "car_inventory.db"  # SQLite DB file
-table_name = "car_details"       # Table name to create/replace
+csv_file = "car_inventory_filled.csv"
+db_file = "car_inventory.db" 
+table_name = "car_details"       
 
 # Read CSV into DataFrame
 df = pd.read_csv(csv_file)
