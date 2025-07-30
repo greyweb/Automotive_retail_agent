@@ -6,3 +6,4 @@ beautifulsoup4
 pillow
 requests
 tabulate
+nest_asyncio
