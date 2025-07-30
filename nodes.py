@@ -242,9 +242,8 @@ def no_results_handler_node(state: AgentState):
             filters
         )
 
-        # Using NO_RESULTS_HANDLER_SYSTEM_PROMPT_v2 as it seems more robust
         prompt = ChatPromptTemplate.from_messages([
-            ("system", NO_RESULTS_HANDLER_SYSTEM_PROMPT_v2),
+            ("system", NO_RESULTS_HANDLER_SYSTEM_PROMPT),
             ("human", "Please generate a helpful and creative response to re-engage the user.")
         ])
 
